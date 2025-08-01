@@ -10,17 +10,24 @@
 using json = nlohmann::json;
 using namespace std;
 
-// ANSI-Farben
+// Farben & Styles wie gehabt
 #define RESET       "\033[0m"
 #define TEXT_WHITE  "\033[97m"
 #define TEXT_YELLOW "\033[93m"
 #define TEXT_CYAN   "\033[96m"
 #define TEXT_RED    "\033[91m"
 #define BG_PINK     "\033[45m"
+#define RED     "\033[38;5;196m"
+#define GREEN   "\033[38;5;28m"
+#define YELLOW  "\033[38;5;226m"
+#define BLUE    "\033[38;5;21m"
+#define MAGENTA "\033[38;5;165m"
+#define PINK    "\033[38;5;204m"
+#define CYAN    "\033[38;5;51m"
+#define WHITE   "\033[38;5;255m"
 
 const string jsonPath = string(getenv("HOME")) + "/.local/share/friends/list.json";
 
-// Datenstruktur
 struct Freund {
     string anrede;
     string vorname;
@@ -30,7 +37,30 @@ struct Freund {
     Freund* next = nullptr;
 };
 
-// Anzeige
+// Globale Fehlerzählung (bei Bedarf)
+short error_count = 0;
+
+template<typename T>
+void sichereEingabe(const string &prompt, T &wert, short& error_count) {
+    while (true) {
+        cout << prompt;
+        cin >> wert;
+        if (!cin.fail()) break;
+
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        error_count++;
+        if (error_count <= 5) {
+            cout << YELLOW << "Hey! Don't break the program" << RESET << RED << " >:( \a" << RESET << endl << endl;
+        } else if (error_count <= 8) {
+            cout << BLUE << "Are you trying to annoy me?" << RESET << PINK << " :3 \a" << RESET << endl << endl;
+        } else {
+            cout << RED << "Enough! Aborting... >:O\a" << RESET << endl << endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
 void anzeigen(Freund* liste) {
     system("clear");
     cout << TEXT_WHITE << BG_PINK << "\n--- Freundesliste ---\n" << RESET;
@@ -38,7 +68,6 @@ void anzeigen(Freund* liste) {
         cout << TEXT_YELLOW << "Keine Freunde vorhanden.\n" << RESET;
         return;
     }
-
     int index = 1;
     while (liste) {
         cout << TEXT_RED << "[" << index << "] "
@@ -86,7 +115,6 @@ void loescheByIndex(Freund*& liste, int index) {
         delete temp;
         return;
     }
-
     Freund* vorher = findeByIndex(liste, index - 1);
     if (vorher && vorher->next) {
         Freund* temp = vorher->next;
@@ -106,11 +134,9 @@ void tausche(Freund*& liste, int i1, int i2) {
     Freund* prev1 = &dummy, *prev2 = &dummy;
     for (int i = 1; i < i1; i++) prev1 = prev1->next;
     for (int i = 1; i < i2; i++) prev2 = prev2->next;
-
     Freund* node1 = prev1->next;
     Freund* node2 = prev2->next;
     if (!node1 || !node2) return;
-
     if (prev1->next == prev2) {
         prev1->next = node2;
         node1->next = node2->next;
@@ -122,11 +148,10 @@ void tausche(Freund*& liste, int i1, int i2) {
         prev2->next = node1;
         node1->next = tmp;
     }
-
     liste = dummy.next;
 }
 
-void bearbeiten(Freund* person) {
+void bearbeiten(Freund* person, short& error_count) {
     if (!person) return;
     int eingabe = 0;
     do {
@@ -137,8 +162,7 @@ void bearbeiten(Freund* person) {
         cout << "[4] Benutzername: @" << person->benutzername << endl;
         cout << "[5] Freunde seit: " << person->freundSeit << endl;
         cout << "[0] Zurück\n";
-        cout << "Auswahl: ";
-        cin >> eingabe;
+        sichereEingabe<int>("Auswahl: ", eingabe, error_count);
 
         switch (eingabe) {
             case 1:
@@ -150,7 +174,7 @@ void bearbeiten(Freund* person) {
             case 4:
                 cout << "Neuer Benutzername: @"; cin >> person->benutzername; break;
             case 5:
-                cout << "Neues Jahr der Freundschaft: "; cin >> person->freundSeit; break;
+                sichereEingabe<unsigned int>("Neues Jahr der Freundschaft: ", person->freundSeit, error_count); break;
             case 0: break;
             default:
                 cout << TEXT_RED << "Ungültige Auswahl.\n" << RESET;
@@ -158,7 +182,6 @@ void bearbeiten(Freund* person) {
     } while (eingabe != 0);
 }
 
-// JSON
 void speichereListe(Freund* liste) {
     json j;
     while (liste) {
@@ -171,7 +194,6 @@ void speichereListe(Freund* liste) {
         });
         liste = liste->next;
     }
-
     string ordner = jsonPath.substr(0, jsonPath.find_last_of('/'));
     string cmd = "mkdir -p " + ordner;
     system(cmd.c_str());
@@ -186,7 +208,6 @@ void speichereListe(Freund* liste) {
 Freund* ladeListe() {
     ifstream file(jsonPath);
     if (!file.is_open()) return nullptr;
-
     json j;
     try {
         file >> j;
@@ -194,7 +215,6 @@ Freund* ladeListe() {
         return nullptr;
     }
     file.close();
-
     Freund* kopf = nullptr;
     for (auto& f : j) {
         Freund* neuer = new Freund{
@@ -207,11 +227,9 @@ Freund* ladeListe() {
         };
         einfuegenAmEnde(kopf, neuer);
     }
-
     return kopf;
 }
 
-// Main
 int main() {
     locale::global(locale("de_DE.UTF-8"));
 
@@ -227,8 +245,7 @@ int main() {
         cout << "[4] Reihenfolge ändern\n";
         cout << "[5] Freund bearbeiten\n";
         cout << "[6] Beenden\n";
-        cout << "Auswahl: ";
-        cin >> auswahl;
+        sichereEingabe<int>("Auswahl: ", auswahl, error_count);
 
         switch (auswahl) {
             case 1: {
@@ -238,7 +255,7 @@ int main() {
                 cout << "Vorname: "; cin >> neuer->vorname;
                 cout << "Nachname: "; cin >> neuer->nachname;
                 cout << "Benutzername: @"; cin >> neuer->benutzername;
-                cout << "Freunde seit (Jahr): "; cin >> neuer->freundSeit;
+                sichereEingabe<unsigned int>("Freunde seit (Jahr): ", neuer->freundSeit, error_count);
                 einfuegenAmEnde(freundesliste, neuer);
                 break;
             }
@@ -249,28 +266,24 @@ int main() {
             case 3: {
                 int del;
                 anzeigen(freundesliste);
-                cout << "Index zum Löschen: ";
-                cin >> del;
+                sichereEingabe<int>("Index zum Löschen: ", del, error_count);
                 loescheByIndex(freundesliste, del);
                 break;
             }
             case 4: {
                 int i1, i2;
                 anzeigen(freundesliste);
-                cout << "Tausche Freund: ";
-                cin >> i1;
-                cout << "Mit Freund: ";
-                cin >> i2;
+                sichereEingabe<int>("Tausche Freund: ", i1, error_count);
+                sichereEingabe<int>("Mit Freund: ", i2, error_count);
                 tausche(freundesliste, i1, i2);
                 break;
             }
             case 5: {
                 int edit;
                 anzeigen(freundesliste);
-                cout << "Freund zum Bearbeiten (Index): ";
-                cin >> edit;
+                sichereEingabe<int>("Freund zum Bearbeiten (Index): ", edit, error_count);
                 Freund* person = findeByIndex(freundesliste, edit);
-                bearbeiten(person);
+                bearbeiten(person, error_count);
                 break;
             }
             case 6:
@@ -280,7 +293,6 @@ int main() {
             default:
                 cout << TEXT_RED << "Ungültige Auswahl.\n" << RESET;
         }
-
     } while (auswahl != 6);
 
     while (freundesliste) {
@@ -288,6 +300,5 @@ int main() {
         freundesliste = freundesliste->next;
         delete temp;
     }
-
     return 0;
 }
